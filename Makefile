@@ -11,6 +11,8 @@ endif
 # General info
 TARGET_NAME := i4004-asm
 TARGET := $(TARGET_NAME)$(TARGET_EXTENSION)
+VERSION ?=
+CODENAME ?=
 
 # Directories
 SRC_DIR := src
@@ -23,7 +25,7 @@ INSTALL_DIR ?= /usr/local/bin
 # Toolchain
 CC ?= cc
 STRIP ?= strip
-TAR ?= tar
+TAR := tar
 
 # Warning flags
 CCWARNINGS := -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-align -Wcast-qual \
@@ -31,14 +33,16 @@ CCWARNINGS := -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-align -Wcast
 	-Wredundant-decls -Winit-self -Wdouble-promotion -Wformat-security
 
 # Compilation flags
-DEBUG_CCFLAGS := -std=c23 -DDEBUG $(CCWARNINGS) -fno-omit-frame-pointer -fno-inline-functions \
-	-fstack-protector-strong -fsanitize=address,undefined -MMD -MP -g3 -O0
-RELEASE_CCFLAGS := -std=c23 -DNDEBUG $(CCWARNINGS) -fvisibility=hidden -mtune=generic \
-	-MMD -MP -D_FORTIFY_SOURCE=2 -O2 -flto
+CCFLAGS := -std=c23 -MMD -MP
+DEBUG_CCFLAGS := -DDEBUG $(CCWARNINGS) $(CCFLAGS) -fno-omit-frame-pointer -fno-inline-functions \
+	-fstack-protector-strong -fsanitize=address,undefined -g3 -O0
+RELEASE_CCFLAGS := -DNDEBUG $(CCWARNINGS) $(CCFLAGS) -fvisibility=hidden -mtune=generic \
+	-D_FORTIFY_SOURCE=2 -O2 -flto
 
 # Linking flags
-DEBUG_LDFLAGS := -fsanitize=address,undefined
-RELEASE_LDFLAGS := -flto
+LDFLAGS :=
+DEBUG_LDFLAGS := $(LDFLAGS) -fsanitize=address,undefined
+RELEASE_LDFLAGS := $(LDFLAGS) -flto
 
 # Source and object files
 SRCS := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.c))
@@ -54,28 +58,19 @@ all: debug release
 
 # Build debug target
 debug: $(DEBUG_DIR)/$(TARGET)
-
 $(DEBUG_DIR)/$(TARGET): $(DEBUG_OBJS)
 	$(CC) $(DEBUG_CCFLAGS) -o $@ $^ $(DEBUG_LDFLAGS)
 
 # Build release target
 release: $(RELEASE_DIR)/$(TARGET)
-
 $(RELEASE_DIR)/$(TARGET): $(RELEASE_OBJS)
 	$(CC) $(RELEASE_CCFLAGS) -o $@ $^ $(RELEASE_LDFLAGS)
 	$(STRIP) $@
-
-# Create distribution-ready tarball
-tarball: $(RELEASE_DIR)/$(TARGET).tar.gz
-
-$(RELEASE_DIR)/$(TARGET).tar.gz: $(RELEASE_DIR)/$(TARGET)
-	$(TAR) -czf $@ -C $(RELEASE_DIR) $(TARGET)
 
 # Pattern rules for building object files
 $(DEBUG_DIR)/%.o: $(SRC_DIR)/%.c | $(DEBUG_DIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(DEBUG_CCFLAGS) -c $< -o $@
-
 $(RELEASE_DIR)/%.o: $(SRC_DIR)/%.c | $(RELEASE_DIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(RELEASE_CCFLAGS) -c $< -o $@
@@ -86,6 +81,11 @@ $(DEBUG_DIR) $(RELEASE_DIR):
 
 # Include dependencies
 -include $(DEBUG_OBJS:.o=.d) $(RELEASE_OBJS:.o=.d)
+
+# Create distribution-ready tarball
+tarball: $(RELEASE_DIR)/$(TARGET).tar.gz
+$(RELEASE_DIR)/$(TARGET).tar.gz: $(RELEASE_DIR)/$(TARGET)
+	$(TAR) -czf $@ -C $(RELEASE_DIR) $(TARGET)
 
 # Install release target
 install: $(RELEASE_DIR)/$(TARGET)
